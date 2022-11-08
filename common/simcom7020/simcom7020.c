@@ -304,7 +304,7 @@ bool mqtt_stop(client clientMQTT, int retry) {
   return false;
 }
 
-// subscribe one topic to server
+// dang ki topic de nhan ban tin dieu khien
 bool mqtt_subscribe(client clientMQTT, char *topic, int qos, int retry,  void (*mqttSubcribeCB)(char * data)) {
   AT_flag res;
   char buf[200];
@@ -322,7 +322,7 @@ bool mqtt_subscribe(client clientMQTT, char *topic, int qos, int retry,  void (*
   return false;
 }
 
-// publish message
+// gui ban tin vao topic
 bool mqtt_message_publish(client clientMQTT, char *data, char *topic,int qos,  int retry) {
   AT_flag res;
   char buf[512];
