@@ -12,6 +12,7 @@
 #include "driver/uart.h"
 #include "string.h"
 #include "cJSON.h"
+#include "dht11.h"
 
 #define URI_MQTT "mqtt.inoway.vn"
 #define MQTT_IP "116.101.122.190"
@@ -47,7 +48,7 @@ static void sendMessageMQTT_task(void *arg)
     {
 
     PUB:
-        if (mqtt_message_publish(client_mqtt, "{10.9, 30.8, 40.3}", topic_pub, 0, 5))
+        if (mqtt_message_publish(client_mqtt, pubMQTTBuffer, topic_pub, 0, 3))
         {
             ESP_LOGI(TAG_SIM, "Public is successfully");
             vTaskDelay(500 / portTICK_RATE_MS);
@@ -79,6 +80,25 @@ static void getMessageMQTT_task(void *arg)
     }
 
     vTaskDelay(1000 / portTICK_RATE_MS);
+}
+
+static void dht11_task(void *arg)
+{
+    while (1)
+    {
+        sprintf(pubMQTTBuffer, "{temperature: %d /humidity: %d}", DHT11_read().temperature, DHT11_read().humidity);
+        if (DHT11_read().status == DHT11_OK)
+        {
+            ESP_LOGI(TAG_SIM, "DHT11 OK");
+        }
+        else
+        {
+            ESP_LOGI(TAG_SIM, "DHT11 failed");
+        }
+        vTaskDelay(5000 / portTICK_RATE_MS);
+    }
+
+    
 }
 
 static void createMessageJSON()
@@ -126,6 +146,7 @@ static void readMessageJSON(char *data)
     cJSON_Delete(root);
 }
 
+
 void app_main(void)
 {
 
@@ -135,6 +156,9 @@ void app_main(void)
 
     // khoi tao uart vs simcom
     init_simcom(NUMERO_PORTA_SERIALE2, U2RXD, U2TXD, 115200);
+
+    // khoi tao dht11
+    DHT11_init(GPIO_NUM_4);
 
     // check connect between simcom vs esp32
     if (!Flag_connect_mqtt)
@@ -158,7 +182,8 @@ void app_main(void)
         }
     }
 
-    createMessageJSON();
+    // //createMessageJSON();
+    xTaskCreate(dht11_task, "dht11_task", 1024 * 4, NULL, 15, NULL);
     xTaskCreate(sendMessageMQTT_task, "sendMessageMQTT_task", 1024 * 4, NULL, 10, NULL);
     xTaskCreate(getMessageMQTT_task, "getMessageMQTT_task", 1024 * 4, NULL, 10, NULL);
 }
