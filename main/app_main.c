@@ -12,6 +12,7 @@
 #include "driver/uart.h"
 #include "string.h"
 #include "cJSON.h"
+#include "freertos/semphr.h"
 #include "dht11.h"
 
 #define URI_MQTT "mqtt.inoway.vn"
@@ -24,6 +25,7 @@ static const char *TAG_SIM = "Tag_sim: ";
 static char topic_pub[100];
 static char topic_sub[100];
 static char pubMQTTBuffer[256];
+static SemaphoreHandle_t mutex;
 bool Flag_connect_mqtt = false;
 
 client client_mqtt = {
@@ -34,6 +36,7 @@ client client_mqtt = {
     .password = DEVICE_TOKEN,
     .mqtt_id = 0};
 
+// function xu ly data nhan tu broker MQTT
 void subcribe_callback(char *data)
 {
     char *_buff;
@@ -46,36 +49,16 @@ static void sendMessageMQTT_task(void *arg)
 {
     while (1)
     {
-
     PUB:
         if (mqtt_message_publish(client_mqtt, pubMQTTBuffer, topic_pub, 0, 3))
         {
-            ESP_LOGI(TAG_SIM, "Public is successfully");
+            ESP_LOGW(TAG_SIM, "Public is successfully");
             vTaskDelay(500 / portTICK_RATE_MS);
         }
         else
         {
-            ESP_LOGI(TAG_SIM, "Public is failed");
+            ESP_LOGW(TAG_SIM, "Public is failed");
             goto PUB;
-        }
-        vTaskDelay(1000 / portTICK_RATE_MS);
-    }
-}
-
-static void getMessageMQTT_task(void *arg)
-{
-    while (1)
-    {
-    SUB:
-        if (mqtt_subscribe(client_mqtt, topic_sub, 0, 3, subcribe_callback))
-        {
-            ESP_LOGI(TAG_SIM, "Sent subcribe is successfully");
-            vTaskDelay(500 / portTICK_RATE_MS);
-        }
-        else
-        {
-            ESP_LOGI(TAG_SIM, "Sent subcribe is failed");
-            goto SUB;
         }
     }
 
@@ -86,19 +69,17 @@ static void dht11_task(void *arg)
 {
     while (1)
     {
-        sprintf(pubMQTTBuffer, "{temperature: %d /humidity: %d}", DHT11_read().temperature, DHT11_read().humidity);
+        sprintf(pubMQTTBuffer, "{'temperature': %d /'humidity': %d}", DHT11_read().temperature, DHT11_read().humidity);
         if (DHT11_read().status == DHT11_OK)
         {
-            ESP_LOGI(TAG_SIM, "DHT11 OK");
+            ESP_LOGW(TAG_SIM, "DHT11 OK");
         }
         else
         {
-            ESP_LOGI(TAG_SIM, "DHT11 failed");
+            ESP_LOGW(TAG_SIM, "DHT11 failed");
         }
         vTaskDelay(5000 / portTICK_RATE_MS);
     }
-
-    
 }
 
 static void createMessageJSON()
@@ -114,39 +95,6 @@ static void createMessageJSON()
     ESP_LOGI(TAG_SIM, "JSON: %s", pubMQTTBuffer);
 }
 
-static void readMessageJSON(char *data)
-{
-    cJSON *root;
-    cJSON *ID1;
-    cJSON *Data1;
-    cJSON *Data2;
-
-    root = cJSON_Parse(data);
-    if (root == NULL)
-    {
-        ESP_LOGW(TAG_SIM, "no JSON");
-    }
-
-    char id1[] = "";
-    char data1[] = "";
-    char data2[] = "";
-
-    ID1 = cJSON_GetObjectItem(root, "ID1");
-    strcpy(id1, cJSON_Print(ID1));
-    ESP_LOGI(TAG_SIM, "ID1: %s", id1);
-
-    Data1 = cJSON_GetObjectItem(root, "Data1");
-    strcpy(data1, cJSON_Print(Data1));
-    ESP_LOGI(TAG_SIM, "Data1 = %0.2f", atof(data1));
-
-    Data2 = cJSON_GetObjectItem(root, "Data2");
-    strcpy(data2, cJSON_Print(Data2));
-    ESP_LOGI(TAG_SIM, "Data2 = %0.2f", atof(data2));
-
-    cJSON_Delete(root);
-}
-
-
 void app_main(void)
 {
 
@@ -160,6 +108,9 @@ void app_main(void)
     // khoi tao dht11
     DHT11_init(GPIO_NUM_4);
 
+    // Create mutex before starting tasks
+    mutex = xSemaphoreCreateMutex();
+
     // check connect between simcom vs esp32
     if (!Flag_connect_mqtt)
     {
@@ -170,20 +121,32 @@ void app_main(void)
         if (mqtt_start(client_mqtt, 3, 64800, 1, 3))
         {
             isconverhex(3); // dinh dang message cua pub la string (AT+CREVHEX=1 la gui hex)
-            ESP_LOGI(TAG_SIM, "MQTT IS CONNECTED");
+            ESP_LOGW(TAG_SIM, "MQTT IS CONNECTED");
             vTaskDelay(2000 / portTICK_RATE_MS);
         }
         else
         {
-            ESP_LOGI(TAG_SIM, "MQTT IS NOT CONNECTED");
+            ESP_LOGW(TAG_SIM, "MQTT IS NOT CONNECTED");
             mqtt_stop(client_mqtt, 2);
             Flag_connect_mqtt = false;
             goto RECONECT;
         }
     }
 
-    // //createMessageJSON();
+// subscribe topic
+SUB:
+    if (mqtt_subscribe(client_mqtt, topic_sub, 0, 3, subcribe_callback))
+    {
+        ESP_LOGW(TAG_SIM, "Sent subcribe is successfully");
+        vTaskDelay(500 / portTICK_RATE_MS);
+    }
+    else
+    {
+        ESP_LOGW(TAG_SIM, "Sent subcribe is failed");
+        goto SUB;
+    }
+
     xTaskCreate(dht11_task, "dht11_task", 1024 * 4, NULL, 15, NULL);
+
     xTaskCreate(sendMessageMQTT_task, "sendMessageMQTT_task", 1024 * 4, NULL, 10, NULL);
-    xTaskCreate(getMessageMQTT_task, "getMessageMQTT_task", 1024 * 4, NULL, 10, NULL);
 }
