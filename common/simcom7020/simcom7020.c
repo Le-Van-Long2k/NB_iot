@@ -70,7 +70,7 @@ static void send_ATComand(char *ATcommand)
   vTaskDelay(100 / portTICK_RATE_MS);
 }
 
-// ???? use UART RX send AT command (sap xep lai respond_data truoc khi gui)
+// use UART RX send AT command (sap xep lai respond_data truoc khi gui)
 static int filter_comma(char *respond_data, int begin, int end, char *output)
 {
   memset(output, 0, strlen(output)); // clear output (output = 0)
@@ -338,13 +338,10 @@ bool mqtt_message_publish(client clientMQTT, char *data, char *topic,int qos,  i
     send_ATComand(buf);
     res = _readFeedback(3000, "OK");
     if(res == AT_OK) return true;
-    //else if(res == AT_ERROR) return false;
+    else if(res == AT_ERROR) return false;
   }
   return false;
 }
-
-
-
 
 
 bool get_signal_strength(char *rssi, char *rsrp, char *rsrq, int retry) {

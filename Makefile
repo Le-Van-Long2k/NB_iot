@@ -3,7 +3,7 @@
 # project subdirectory.
 #
 
-PROJECT_NAME := blink
+PROJECT_NAME := NB_iot
 
 EXTRA_COMPONENT_DIRS = $(IDF_PATH)/examples/common_components/led_strip
 
