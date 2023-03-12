@@ -104,7 +104,12 @@ static void sendMessageMQTT_task(void *arg)
             ESP_LOGW(TAG_SIM, "Public is failed");
             goto PUB;
         }
-        vTaskDelay(pdMS_TO_TICKS(1000));
+
+        xEventGroupClearBits(xEventGroupSendPub, BIT_EVENT_DHT11);
+        xEventGroupClearBits(xEventGroupSendPub, BIT_EVENT_BH1750);
+        xEventGroupClearBits(xEventGroupSendPub, BIT_EVENT_KY037);
+
+        vTaskDelay(pdMS_TO_TICKS(2000));
     }
 }
 
@@ -116,13 +121,12 @@ static void dht11_task(void *arg)
         DHT11.humidity = DHT11_read().humidity;
         if (DHT11_read().status == DHT11_OK)
         {
-            // ESP_LOGW(TAG_SIM, "DHT11 OK");
             ESP_LOGW("DHT11", "temperature: %d, humidity: %d", DHT11.temperature, DHT11.humidity);
             xEventGroupSetBits(xEventGroupSendPub, BIT_EVENT_DHT11);
         }
         else
         {
-            ESP_LOGW(TAG_SIM, "DHT11 failed");
+            ESP_LOGW("DHT11", "failed");
         }
         vTaskDelay(pdMS_TO_TICKS(2000));
     }
@@ -136,13 +140,12 @@ static void bh1750_task(void *arg)
         BH1750_getLux();
         if (BH1750.status == BH1750FVI_OK || BH1750_isReady() == 0)
         {
-            // ESP_LOGW(TAG_SIM, "BH1750 OK");
             ESP_LOGW("BH1750", "Light: %d", BH1750.lux);
             xEventGroupSetBits(xEventGroupSendPub, BIT_EVENT_BH1750);
         }
         else
         {
-            ESP_LOGW(TAG_SIM, "BH1750 failed");
+            ESP_LOGW("BH1750", "failed");
         }
         vTaskDelay(pdMS_TO_TICKS(2000));
     }
@@ -229,6 +232,6 @@ void app_main(void)
 
     xTaskCreatePinnedToCore(dht11_task, "dht11_task", 1024 * 4, NULL, 8, NULL, 1);
     xTaskCreatePinnedToCore(bh1750_task, "bh1750_task", 1024 * 4, NULL, 8, NULL, 1);
-    xTaskCreatePinnedToCore(sound_task, "sound_task", 1024 * 4, NULL, 15, NULL, 1);
-    xTaskCreatePinnedToCore(sendMessageMQTT_task, "sendMessageMQTT_task", 5 * 1024, NULL, 10, NULL, 1);
+    xTaskCreatePinnedToCore(sound_task, "sound_task", 1024 * 4, NULL, 8, NULL, 1);
+    xTaskCreatePinnedToCore(sendMessageMQTT_task, "sendMessageMQTT_task", 5 * 1024, NULL, 15, NULL, 1);
 }
